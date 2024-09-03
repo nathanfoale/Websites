@@ -1,0 +1,118 @@
+library(shiny)
+library(openxlsx)
+library(rsconnect)
+
+# UI
+ui <- fluidPage(
+  titlePanel("Bus Cleaning and Refuelling Invoice Generator"),
+  
+  sidebarLayout(
+    sidebarPanel(
+      h3("Newton Depot"),
+      numericInput("rigid_clean_newton", "Rigid Clean:", value = 0),
+      numericInput("artic_clean_newton", "Artic Clean:", value = 0),
+      numericInput("seat_clean_rigid_newton", "Seat Steam Clean Rigid:", value = 0),
+      numericInput("seat_clean_artic_newton", "Seat Steam Clean Artic:", value = 0),
+      numericInput("pool_clean_newton", "Pool Vehicle Cleaning:", value = 0),
+      numericInput("refuel_newton", "Bus Refuelling:", value = 0),
+      numericInput("newton_weekdays", "Facility Clean Weekdays:", value = 0),
+      numericInput("newton_saturdays", "Facility Clean Saturdays:", value = 0),
+      
+      h3("Mile End Depot"),
+      numericInput("rigid_clean_mileend", "Rigid Clean:", value = 0),
+      numericInput("artic_clean_mileend", "Artic Clean:", value = 0),
+      numericInput("seat_clean_rigid_mileend", "Seat Steam Clean Rigid:", value = 0),
+      numericInput("seat_clean_artic_mileend", "Seat Steam Clean Artic:", value = 0),
+      numericInput("pool_clean_mileend", "Pool Vehicle Cleaning:", value = 0),
+      numericInput("refuel_mileend", "Bus Refuelling:", value = 0),
+      numericInput("mileend_weekdays", "Facility Clean Weekdays:", value = 0),
+      numericInput("mileend_saturdays", "Facility Clean Saturdays:", value = 0),
+      
+      h3("Sealink Coaches"),
+      numericInput("sealink_weekday", "Sealink Weekday:", value = 0),
+      numericInput("sealink_saturday", "Sealink Saturday:", value = 0),
+      numericInput("sealink_sunday", "Sealink Sunday:", value = 0),
+      numericInput("sealink_holiday", "Sealink Public Holiday:", value = 0),
+      
+      actionButton("generate", "Generate Invoice")
+    ),
+    
+    mainPanel(
+      tableOutput("invoice_table"),
+     # h3("Total:"),
+      textOutput("total_cost"),
+      uiOutput("invoice_details")
+    )
+  )
+)
+
+# Functionality
+server <- function(input, output) {
+  
+  prices <- reactive({
+    data.frame(
+      Depot = rep(c("Newton", "Mile End", "Sealink Coaches"), c(8, 8, 4)),
+      Service = c("Rigid Clean", "Artic Clean", "Seat Steam Clean Rigid", "Seat Steam Clean Artic",
+                  "Pool Vehicle Cleaning", "Bus Refuelling", 
+                  "Weekdays", "Saturdays",
+                  "Rigid Clean", "Artic Clean", "Seat Steam Clean Rigid", "Seat Steam Clean Artic",
+                  "Pool Vehicle Cleaning", "Bus Refuelling", 
+                  "Weekdays", "Saturdays",
+                  "Weekday", "Saturday", "Sunday", "Public Holiday"),
+      Price_per_service = c(29.70, 35.50, 56.58, 76.99, 29.70, 5.60, 33.20, 44.00,
+                            29.70, 35.50, 56.58, 76.99, 29.70, 5.60, 33.20, 44.00,
+                            32.40, 41.50, 55.20, 69.20),
+      Quantity = c(input$rigid_clean_newton, input$artic_clean_newton, input$seat_clean_rigid_newton, 
+                   input$seat_clean_artic_newton, input$pool_clean_newton, input$refuel_newton, 
+                   input$newton_weekdays, input$newton_saturdays,
+                   input$rigid_clean_mileend, input$artic_clean_mileend, input$seat_clean_rigid_mileend, 
+                   input$seat_clean_artic_mileend, input$pool_clean_mileend, input$refuel_mileend, 
+                   input$mileend_weekdays, input$mileend_saturdays,
+                   input$sealink_weekday, input$sealink_saturday, input$sealink_sunday, input$sealink_holiday)
+    )
+  })
+  
+  invoice <- reactive({
+    df <- prices()
+    df$Total <- df$Price_per_service * df$Quantity
+    
+
+    total_row <- data.frame(Depot = "", Service = "Total", Price_per_service = "", Quantity = "", Total = sum(df$Total))
+    df <- rbind(df, total_row)
+    
+    df
+  })
+  
+  total_cost <- reactive({
+
+    sum(prices()$Price_per_service * prices()$Quantity)
+  })
+  
+  output$invoice_table <- renderTable({
+    invoice()
+  })
+  
+ output$total_cost <- renderText({
+ paste0("$", format(total_cost(), nsmall = 2))
+  })
+  
+  output$invoice_details <- renderUI({
+    if(input$generate > 0) {
+      HTML(paste(
+        "<br><br><span style='font-size: 24px;'><strong>Date:</strong> ", Sys.Date(), "<br>",
+        "<strong>Reliable Cleaners</strong><br>",
+        "1A Berry Road<br>",
+        "Enfield, SA, 5085<br>",
+        "<strong>ABN:</strong> 65 392 272 291<br><br>",
+        "<strong>Bill To:</strong><br>",
+        "Company Name: Precision Cleaning<br>",
+        "Street Address: 45 Hackney Road, Hackney, 5069<br>",
+        "<strong>ABN:</strong> 62 157 352 16 <br><br>",
+        "<strong>Amount Due:</strong> $", format(total_cost(), nsmall = 2), "<br><br></span>"
+      ))
+    }
+  })
+  
+}
+
+shinyApp(ui = ui, server = server)
